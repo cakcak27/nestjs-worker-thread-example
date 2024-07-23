@@ -1,10 +1,16 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, MessageEvent } from '@nestjs/common';
 import { Worker, isMainThread } from 'worker_threads';
 import workerThreadFilePath from './worker-threads/config';
+import { BehaviorSubject, Observable, filter, fromEvent, map } from 'rxjs';
+import { join } from 'path';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class AppService {
   private readonly logger = new Logger(AppService.name);
+
+  private worker: Worker; 
+  private messages$ = new BehaviorSubject<MessageEvent>({ data: { state: "init", value: null }});
 
   checkMainThread() {
     this.logger.debug(
@@ -28,5 +34,51 @@ export class AppService {
     worker.on('exit', (code) => console.log('on exit', code));
 
     return 'Processing the fibonacci sum... Check NestJS app console for the result.';
+  }
+
+  runWorkerSse(fibonacci: number): Observable<MessageEvent> {
+    this.checkMainThread();
+
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const thisService = this;
+    const worker = new Worker(workerThreadFilePath, {
+      workerData: fibonacci,
+    });
+    worker.on('message', (fibonacciSum) => {
+      const messageEvent = {
+        data: {
+          state: 'message',
+          properties: {
+            value: fibonacciSum
+          }
+        }
+      } as MessageEvent
+      thisService.logger.verbose('Calculated sum', messageEvent);
+      thisService.messages$.next(messageEvent)
+    });
+    worker.on('error', (e) => {
+      const messageEvent = {
+        data: {
+          state: 'error',
+          properties: {
+            error: e
+          }
+        }
+      } as MessageEvent
+      thisService.messages$.next(messageEvent)
+    });
+    worker.on('exit', (code) => {
+      const messageEvent = {
+        data: {
+          state: 'exit',
+          properties: {
+            code: code
+          }
+        }
+      } as MessageEvent
+      thisService.messages$.next(messageEvent)
+    });
+
+    return this.messages$
   }
 }

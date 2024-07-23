@@ -12,7 +12,7 @@ async function run() {
   const fibonacciNumber: number = workerData;
 
   appService.checkMainThread();
-  const fibonacciSum = fibonacciService.fibonacci(fibonacciNumber);
+  const fibonacciSum = fibonacciService.listFibonacci(fibonacciNumber);
   parentPort.postMessage(fibonacciSum);
 }
 
