@@ -3,11 +3,13 @@ import {
   Get,
   MessageEvent,
   Query,
+  Res,
   Sse,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { AppService } from './app.service';
 import { Observable, interval, map } from 'rxjs';
+import { Response } from 'express';
 
 @Controller()
 export class AppController {
@@ -29,13 +31,15 @@ export class AppController {
   }
 
   @Sse('/runWorkerSse')
-  runWorkerSse(@Query('fibonacci') fibonacci: string): any {
+  runWorkerSse(@Query('fibonacci') fibonacci: string, @Res() res: Response): any {
     const parsedFibonacci = parseInt(fibonacci);
     if (isNaN(parsedFibonacci)) {
       throw new UnprocessableEntityException('fibonacci must be a number!');
     }
 
-    return this.appService.runWorkerSse(parsedFibonacci);
+    const observable = this.appService.runWorkerSse(parsedFibonacci);
+
+    return observable
   }
 
   @Sse('sse')

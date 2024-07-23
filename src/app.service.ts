@@ -10,7 +10,7 @@ export class AppService {
   private readonly logger = new Logger(AppService.name);
 
   private worker: Worker; 
-  private messages$ = new BehaviorSubject<MessageEvent>({ data: { state: "init", value: null }});
+  
 
   checkMainThread() {
     this.logger.debug(
@@ -39,6 +39,13 @@ export class AppService {
   runWorkerSse(fibonacci: number): Observable<MessageEvent> {
     this.checkMainThread();
 
+    const messageId = randomUUID()
+    const messages$ = new BehaviorSubject<MessageEvent>({ 
+      id: messageId,
+      data: { state: "init", properties: null },
+      type: "init"
+    });
+
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const thisService = this;
     const worker = new Worker(workerThreadFilePath, {
@@ -46,6 +53,8 @@ export class AppService {
     });
     worker.on('message', (fibonacciSum) => {
       const messageEvent = {
+        id: messageId,
+        type: "message",
         data: {
           state: 'message',
           properties: {
@@ -54,10 +63,12 @@ export class AppService {
         }
       } as MessageEvent
       thisService.logger.verbose('Calculated sum', messageEvent);
-      thisService.messages$.next(messageEvent)
+      messages$.next(messageEvent)
     });
     worker.on('error', (e) => {
       const messageEvent = {
+        id: messageId,
+        type: "error",
         data: {
           state: 'error',
           properties: {
@@ -65,10 +76,12 @@ export class AppService {
           }
         }
       } as MessageEvent
-      thisService.messages$.next(messageEvent)
+      messages$.next(messageEvent)
     });
     worker.on('exit', (code) => {
       const messageEvent = {
+        id: messageId,
+        type: "exit",
         data: {
           state: 'exit',
           properties: {
@@ -76,9 +89,11 @@ export class AppService {
           }
         }
       } as MessageEvent
-      thisService.messages$.next(messageEvent)
+      messages$.next(messageEvent)
+      messages$.complete()
     });
+  
 
-    return this.messages$
+    return messages$
   }
 }
